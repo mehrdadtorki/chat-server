@@ -1,15 +1,18 @@
-// server/index.js
 const express = require("express");
+const { ApolloServer } = require("apollo-server-express");
 const http = require("http");
 const { Server } = require("socket.io");
+
+const typeDefs = require("./graphql/schema");
+const resolvers = require("./graphql/resolvers");
 
 const app = express();
 const server = http.createServer(app);
 
-// Configure CORS for Socket.IO
+// Setup Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "https://localhost:3000", // Allow connections from your Next.js app
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"],
   },
 });
@@ -17,18 +20,29 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Listen for chat messages
-  socket.on("message", (msg) => {
-    io.emit("message", msg); // Broadcast message to all clients
+  socket.on("sendMessage", (data) => {
+    // Broadcast the new message to all clients
+    io.emit("newMessage", data);
   });
 
-  // Handle disconnection
+  socket.on("updateMessageStatus", (data) => {
+    // Broadcast the status update to all clients
+    io.emit("messageStatusUpdate", data);
+  });
+
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
 });
 
-const PORT = 4000;
-server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// Setup Apollo Server
+const apolloServer = new ApolloServer({ typeDefs, resolvers });
+apolloServer.start().then(() => {
+  apolloServer.applyMiddleware({ app, path: "/graphql" });
+
+  const PORT = 4000;
+  server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`GraphQL endpoint: http://localhost:${PORT}/graphql`);
+  });
 });
