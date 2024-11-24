@@ -1,48 +1,48 @@
-const express = require("express");
-const { ApolloServer } = require("apollo-server-express");
-const http = require("http");
-const { Server } = require("socket.io");
+import express from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
 
-const typeDefs = require("./graphql/schema");
-const resolvers = require("./graphql/resolvers");
+// routes
+import AuthRoute from "./Routes/AuthRoute.js";
+import UserRoute from "./Routes/UserRoute.js";
+// import PostRoute from "./Routes/PostRoute.js";
+// import UploadRoute from "./Routes/UploadRoute.js";
+import ChatRoute from "./Routes/ChatRoute.js";
+import MessageRoute from "./Routes/MessageRoute.js";
 
 const app = express();
-const server = http.createServer(app);
+// middleware
+app.use(bodyParser.json({ limit: "30mb", extended: true }));
+app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
+app.use(cors());
+// to serve images inside public folder
+app.use(express.static("public"));
+app.use("/images", express.static("images"));
 
-// Setup Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-  },
-});
+dotenv.config();
+const PORT = process.env.PORT;
+// const PORT = 5000;
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("sendMessage", (data) => {
-    // Broadcast the new message to all clients
-    io.emit("newMessage", data);
+const CONNECTION = process.env.MONGODB_CONNECTION;
+// const CONNECTION =
+// "mongodb+srv://mehrdadtorki1381:mhrdd5610@cluster-chat.wacnq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster-Chat";
+mongoose
+  .connect(CONNECTION, {
+    connectTimeoutMS: 10000,
+  })
+  .then(() => {
+    app.listen(PORT, () => console.log(`Listening at Port ${PORT}`));
+  })
+  .catch((error) => {
+    console.log(`Error: ${error.message}`);
+    process.exit(1); // Exit process if DB connection fails
   });
 
-  socket.on("updateMessageStatus", (data) => {
-    // Broadcast the status update to all clients
-    io.emit("messageStatusUpdate", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-});
-
-// Setup Apollo Server
-const apolloServer = new ApolloServer({ typeDefs, resolvers });
-apolloServer.start().then(() => {
-  apolloServer.applyMiddleware({ app, path: "/graphql" });
-
-  const PORT = 4000;
-  server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`GraphQL endpoint: http://localhost:${PORT}/graphql`);
-  });
-});
+app.use("/auth", AuthRoute);
+app.use("/user", UserRoute);
+// app.use("/posts", PostRoute);
+// app.use("/upload", UploadRoute);
+app.use("/chat", ChatRoute);
+app.use("/message", MessageRoute);
